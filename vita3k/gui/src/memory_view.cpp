@@ -1,5 +1,5 @@
 // memory_view.cpp
-#include "memory_view.h"
+#include "private.h"
 #include <fstream>
 #include <iostream>
 #include <iomanip>
