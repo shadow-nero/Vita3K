@@ -145,6 +145,7 @@ struct DebugMenuState {
     bool allocations_dialog = false;
     bool memory_editor_dialog = false;
     bool disassembly_dialog = false;
+    bool show_memory_view = false;
 };
 
 struct ConfigurationMenuState {
