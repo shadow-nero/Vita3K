@@ -63,6 +63,9 @@ void draw_controllers_dialog(GuiState &gui, EmuEnvState &emuenv);
 void draw_about_dialog(GuiState &gui, EmuEnvState &emuenv);
 void draw_vita3k_update(GuiState &gui, EmuEnvState &emuenv);
 void draw_welcome_dialog(GuiState &gui, EmuEnvState &emuenv);
+void draw_memory_view(GuiState &gui, EmuEnvState &emuenv);
+void dump_memory(const uint8_t* memory, size_t size, const std::string& filename);
+std::vector<size_t> search_strings(const uint8_t* memory, size_t size, const std::string& search_term);
 
 void draw_app_close(GuiState &gui, EmuEnvState &emuenv);
 void draw_content_manager(GuiState &gui, EmuEnvState &emuenv);
