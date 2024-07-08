@@ -27,6 +27,7 @@ add_library(
 	src/live_area.cpp
 	src/main_menubar.cpp
 	src/manual.cpp
+ 	src/memory_view.cpp
 	src/mutexes_dialog.cpp
 	src/perf_overlay.cpp
 	src/pkg_install_dialog.cpp
