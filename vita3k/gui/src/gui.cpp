@@ -873,6 +873,9 @@ void draw_ui(GuiState &gui, EmuEnvState &emuenv) {
         draw_allocations_dialog(gui, emuenv);
     if (gui.debug_menu.disassembly_dialog)
         draw_disassembly_dialog(gui, emuenv);
+    if (gui.debug_menu.memory_view_dialog) {
+        draw_memory_view(gui, emuenv);
+    }
 
     ImGui::PopFont();
 }
