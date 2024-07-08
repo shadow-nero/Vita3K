@@ -299,6 +299,12 @@ struct GuiState {
     char disassembly_address[12] = "00000000";
     char disassembly_count[5] = "100";
     std::vector<std::string> disassembly;
+char memory_start_address[9] = {0};
+    int memory_size = 0;
+    std::vector<uint8_t> memory_data;
+    char memory_search_term[256] = {0};
+    std::vector<size_t> search_results;
+
 
     bool is_capturing_keys = false;
     bool is_key_capture_dropped = false;
