@@ -186,7 +186,7 @@ bool is_valid_addr_range(const MemState &state, Address start, Address end) {
     return state.allocator.free_slot_count(start_page, end_page) == 0;
 }
 
-static Address alloc_inner(MemState &state, uint32_t start_page, int page_count, const char *name, const bool force) {
+static Address alloc_inner2(MemState &state, uint32_t start_page, int page_count, const char *name, const bool force) {
     int page_num;
     if (force) {
         if (state.allocator.allocate_at(start_page, page_count) < 0) {
