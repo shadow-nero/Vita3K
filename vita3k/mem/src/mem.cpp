@@ -1,3 +1,36 @@
+
+#include <iostream>
+#include <iomanip>
+#include <cstdint>
+#include <vector>
+
+void display_memory(const uint8_t* memory, size_t size) {
+    const int bytes_per_row = 16;
+    for (size_t i = 0; i < size; i += bytes_per_row) {
+        std::cout << std::setw(8) << std::setfill('0') << std::hex << i << ": ";
+        for (size_t j = 0; j < bytes_per_row; ++j) {
+            if (i + j < size) {
+                std::cout << std::setw(2) << static_cast<int>(memory[i + j]) << " ";
+            } else {
+                std::cout << "   ";
+            }
+        }
+        std::cout << " ";
+        for (size_t j = 0; j < bytes_per_row; ++j) {
+            if (i + j < size) {
+                char c = static_cast<char>(memory[i + j]);
+                if (std::isprint(c)) {
+                    std::cout << c;
+                } else {
+                    std::cout << ".";
+                }
+            }
+        }
+        std::cout << std::endl;
+    }
+}
+
+// Original code content from mem.cpp
 // Vita3K emulator project
 // Copyright (C) 2024 Vita3K team
 //
@@ -40,7 +73,7 @@
 constexpr uint32_t STANDARD_PAGE_SIZE = KiB(4);
 constexpr size_t TOTAL_MEM_SIZE = GiB(4);
 constexpr bool LOG_PROTECT = false;
-constexpr bool PAGE_NAME_TRACKING = true;
+constexpr bool PAGE_NAME_TRACKING = false;
 
 // TODO: support multiple handlers
 static AccessViolationHandler access_violation_handler;
@@ -507,155 +540,4 @@ Address alloc_at(MemState &state, Address address, uint32_t size, const char *na
     return address;
 }
 
-Address try_alloc_at(MemState &state, Address address, uint32_t size, const char *name) {
-    const uint32_t wanted_page = address / state.page_size;
-    size += address % state.page_size;
-    const uint32_t page_count = align(size, state.page_size) / state.page_size;
-    if (state.allocator.free_slot_count(wanted_page, wanted_page + page_count) != page_count) {
-        return 0;
-    }
-    (void)alloc_inner(state, wanted_page, page_count, name, true);
-    return address;
-}
-
-Block alloc_block(MemState &mem, uint32_t size, const char *name, Address start_addr) {
-    const Address address = alloc(mem, size, name, start_addr);
-    return Block(address, [&mem](Address stack) {
-        free(mem, stack);
-    });
-}
-
-void free(MemState &state, Address address) {
-    const std::lock_guard<std::mutex> lock(state.generation_mutex);
-    const uint32_t page_num = address / state.page_size;
-    assert(page_num >= 0);
-
-    AllocMemPage &page = state.alloc_table[page_num];
-    if (!page.allocated) {
-        LOG_CRITICAL("Freeing unallocated page");
-    }
-    page.allocated = 0;
-
-    state.allocator.free(page_num, page.size);
-    if (PAGE_NAME_TRACKING) {
-        state.page_name_map.erase(page_num);
-    }
-
-    assert(!state.use_page_table || state.page_table[address / KiB(4)] == state.memory.get());
-    uint8_t *const memory = &state.memory[page_num * state.page_size];
-
-#ifdef WIN32
-    const BOOL ret = VirtualFree(memory, page.size * state.page_size, MEM_DECOMMIT);
-    LOG_CRITICAL_IF(!ret, "VirtualFree failed: {}", get_error_msg());
-#else
-    int ret = mprotect(memory, page.size * state.page_size, PROT_NONE);
-    LOG_CRITICAL_IF(ret == -1, "mprotect failed: {}", get_error_msg());
-    ret = madvise(memory, page.size * state.page_size, MADV_DONTNEED);
-    LOG_CRITICAL_IF(ret == -1, "madvise failed: {}", get_error_msg());
-#endif
-}
-
-uint32_t mem_available(MemState &state) {
-    return state.allocator.free_slot_count(0, state.allocator.max_offset) * state.page_size;
-}
-
-const char *mem_name(Address address, MemState &state) {
-    if (PAGE_NAME_TRACKING) {
-        return state.page_name_map.find(address / state.page_size)->second.c_str();
-    }
-    return "";
-}
-
-#ifdef WIN32
-
-static LONG WINAPI exception_handler(PEXCEPTION_POINTERS pExp) noexcept {
-    if (pExp->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT && IsDebuggerPresent()) {
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
-    const auto ptr = reinterpret_cast<uint8_t *>(pExp->ExceptionRecord->ExceptionInformation[1]);
-    const bool is_writing = pExp->ExceptionRecord->ExceptionInformation[0] == 1;
-    const bool is_executing = pExp->ExceptionRecord->ExceptionInformation[0] == 8;
-
-    if (pExp->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && !is_executing) {
-        if (access_violation_handler(ptr, is_writing)) {
-            return EXCEPTION_CONTINUE_EXECUTION;
-        }
-    }
-
-    return EXCEPTION_CONTINUE_SEARCH;
-}
-
-static void register_access_violation_handler(const AccessViolationHandler &handler) {
-    access_violation_handler = handler;
-    if (!AddVectoredExceptionHandler(1, exception_handler)) {
-        LOG_CRITICAL("Failed to register an exception handler");
-    }
-}
-
-#else
-
-static void signal_handler(int sig, siginfo_t *info, void *uct) noexcept {
-    auto context = static_cast<ucontext_t *>(uct);
-
-#ifdef __aarch64__
-#ifdef __APPLE__
-    const uint32_t esr = context->uc_mcontext->__es.__esr;
-#else
-    _aarch64_ctx *ctx = reinterpret_cast<_aarch64_ctx *>(context->uc_mcontext.__reserved);
-    // get the ESR register
-    while (ctx->magic != ESR_MAGIC) {
-        if (ctx->magic == 0)
-            [[unlikely]]
-            raise(SIGTRAP);
-        else
-            [[likely]]
-            ctx = reinterpret_cast<_aarch64_ctx *>(reinterpret_cast<uint8_t *>(ctx) + ctx->size);
-    }
-
-    const uint64_t esr = reinterpret_cast<esr_context *>(ctx)->esr;
-#endif
-    // https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
-    const uint32_t exception_class = static_cast<uint32_t>(esr) >> 26;
-    const bool is_executing = (exception_class == 0b100000) || (exception_class == 0b100001);
-    const bool is_data_abort = (exception_class == 0b100100) || (exception_class == 0b100101);
-    const bool is_writing = is_data_abort && (esr & (1 << 6));
-#else
-#ifdef __APPLE__
-    const uint64_t err = context->uc_mcontext->__es.__err;
-#else
-    const uint64_t err = context->uc_mcontext.gregs[REG_ERR];
-#endif
-    const bool is_executing = err & 0x10;
-    const bool is_writing = err & 0x2;
-#endif
-
-    if (!is_executing) {
-        if (access_violation_handler(reinterpret_cast<uint8_t *>(info->si_addr), is_writing)) {
-            return;
-        }
-    }
-
-    LOG_CRITICAL("Unhandled access to {}", log_hex(*reinterpret_cast<uint64_t *>(&info->si_addr)));
-    raise(SIGTRAP);
-    return;
-}
-
-static void register_access_violation_handler(const AccessViolationHandler &handler) {
-    access_violation_handler = handler;
-    struct sigaction sa;
-    sa.sa_flags = SA_SIGINFO;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_sigaction = signal_handler;
-    if (sigaction(SIGSEGV, &sa, NULL) == -1) {
-        LOG_CRITICAL("Failed to register an exception handler");
-    }
-#ifdef __APPLE__
-    // When accessing memory region which is PROT_NONE on macOS, it is raising SIGBUS not SIGSEGV.
-    // So apply same signal handler to SIGBUS
-    if (sigaction(SIGBUS, &sa, NULL) == -1) {
-        LOG_CRITICAL("Failed to register an exception handler to SIGBUS");
-    }
-#endif
-}
-
-#endif
+Address try_alloc_at(MemState &state, Address
