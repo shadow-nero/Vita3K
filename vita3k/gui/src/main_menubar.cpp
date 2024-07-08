@@ -113,7 +113,7 @@ static void draw_debug_menu(GuiState &gui, DebugMenuState &state) {
         ImGui::MenuItem(lang["event_flags"].c_str(), nullptr, &state.eventflags_dialog);
         ImGui::MenuItem(lang["memory_allocations"].c_str(), nullptr, &state.allocations_dialog);
         ImGui::MenuItem(lang["disassembly"].c_str(), nullptr, &state.disassembly_dialog);
-        ImGui::MenuItem(lang["Memory View"].c_str(), nullptr, &state.show_memory_view);
+        ImGui::MenuItem(lang["Memory View"].c_str(), nullptr, &state.memory_view_dialog);
         ImGui::EndMenu();
     }
 }
