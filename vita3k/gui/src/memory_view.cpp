@@ -1,4 +1,3 @@
-// memory_view.cpp
 #include "private.h"
 #include <fstream>
 #include <iostream>
@@ -21,7 +20,7 @@ void draw_memory_view(GuiState &gui, EmuEnvState &emuenv) {
     if (ImGui::Button("View Memory")) {
         uint32_t address = static_cast<uint32_t>(std::stol(gui.memory_start_address, nullptr, 16));
         size_t size = gui.memory_size;
-        uint8_t *memory = emuenv.mem.data() + address;
+        uint8_t *memory = emuenv.mem.memory.get() + address; // Corrigido aqui
         gui.memory_data.clear();
         gui.memory_data.insert(gui.memory_data.end(), memory, memory + size);
     }
